@@ -1,0 +1,8 @@
+mediapipe==1.0.1; sys_platform != "darwin"
+# 1.0.1 aborts on macOS CPU ("graph_service.h: Service is unavailable"); fixed upstream.
+mediapipe==1.2.3; sys_platform == "darwin"
+opencv-contrib-python>=4.14,<6
+numpy>=2.0,<3
+pyvirtualcam>=0.15,<1
+pygame>=2.6,<3
+certifi
