@@ -4,3 +4,4 @@ __pycache__/
 *.part
 /local_app/models/*
 !/local_app/models/blaze_face_short_range.tflite
+.DS_Store
