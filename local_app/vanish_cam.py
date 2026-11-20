@@ -1100,6 +1100,39 @@ def run_camera(args: argparse.Namespace, resources: ExitStack, mode: str, licens
                     vanished_frame = None if appearing else display
                     itachi_effect = None
 
+            elif state.phase == "reappearing":
+                # Normal / Particles / Naruto: replay the vanish animation backwards
+                # over the live camera so the person is rebuilt the way they left.
+                elapsed = time.perf_counter() - state.vanish_started
+                duration = {"particles": PARTICLE_SECONDS, "naruto": EFFECT_SECONDS}.get(mode, VANISH_SECONDS)
+                if mode == "particles":
+                    display = particle_effect.render(background, max(0.0, duration - elapsed))
+                else:
+                    if last_mask is None or now - last_mask_at >= 0.05:
+                        rgb = cv2.cvtColor(camera_frame, cv2.COLOR_BGR2RGB)
+                        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                        last_mask = person_mask(segmenter, mp_image, elapsed_ms, width, height)
+                        last_mask_at = now
+                    if mode == "naruto":
+                        display = render_substitution(
+                            camera_frame, background, last_mask, log_sprite,
+                            log_anchor or substitution_anchor(last_mask),
+                            max(0.0, duration - elapsed), log_cache,
+                        )
+                    else:
+                        display = apply_dissolve(
+                            camera_frame, background, last_mask, max(0.0, 1.0 - elapsed / duration),
+                            dissolve_field, sparkle_noise,
+                        )
+                if elapsed >= duration:
+                    display = camera_frame
+                    state.phase = "ready"
+                    state.vanish_started = None
+                    log_anchor = None
+                    particle_effect = None
+                    last_mask = None
+                    last_mask_at = float("-inf")
+
             elif state.phase == "vanished":
                 if vanished_frame is None:
                     vanished_frame = background.copy()
@@ -1229,6 +1262,20 @@ def run_camera(args: argparse.Namespace, resources: ExitStack, mode: str, licens
                         state.phase = "itachi_appearing"
                         state.vanish_started = time.perf_counter()
                         vanished_frame = None
+                elif background is not None and mode not in ("goku", "itachi") and state.phase == "vanished":
+                    if mode == "particles":
+                        # Particles converge onto where the person stands now.
+                        rgb = cv2.cvtColor(camera_frame, cv2.COLOR_BGR2RGB)
+                        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                        mask = person_mask(segmenter, mp_image, elapsed_ms, width, height)
+                        particle_effect = ParticleEffect(camera_frame, mask)
+                    elif mode == "naruto":
+                        vanish_sound.play()
+                    state.phase = "reappearing"
+                    state.vanish_started = time.perf_counter()
+                    vanished_frame = None
+                    last_mask = None
+                    last_mask_at = float("-inf")
                 elif background is not None and mode not in ("goku", "itachi"):
                     state.phase = "ready"
                     state.vanish_started = None
